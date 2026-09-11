@@ -1,0 +1,28 @@
+# ============================================================
+# docker-compose.yml — Tracker App
+# ============================================================
+version: '3.8'
+
+services:
+  tracker-app:
+    build: .
+    container_name: tracker-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ADMIN_USER=admin
+      - ADMIN_PASSWORD=admin123
+      - SESSION_SECRET=ganti-ini-dengan-random-string-panjang
+    volumes:
+      # Mount folder untuk logs & snapshots (persist data)
+      - ./logs.json:/app/logs.json
+      - ./snapshots:/app/snapshots-data
+    networks:
+      - tracker-network
+
+networks:
+  tracker-network:
+    driver: bridge

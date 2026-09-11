@@ -1,0 +1,9 @@
+node_modules/
+auto-backups/
+snapshot-*.png
+logs.json
+.env
+.DS_Store
+*.log
+.vscode/
+.idea/

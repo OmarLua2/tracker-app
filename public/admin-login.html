@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Login Admin — Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+  body { background: #1a1b1e; color: #dbdee1; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: #2b2d31; width: 100%; max-width: 400px; padding: 32px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .icon { font-size: 48px; text-align: center; margin-bottom: 16px; }
+  h1 { font-size: 22px; color: #f2f3f5; text-align: center; margin-bottom: 6px; }
+  .subtitle { text-align: center; color: #949ba4; font-size: 13px; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 700; color: #b5bac1; text-transform: uppercase; margin-bottom: 6px; margin-top: 16px; }
+  input { width: 100%; padding: 12px; background: #1e1f22; border: 1px solid #1e1f22; border-radius: 4px; color: #dbdee1; font-size: 15px; outline: none; transition: border 0.15s; }
+  input:focus { border-color: #5865f2; }
+  button { width: 100%; margin-top: 24px; background: #5865f2; color: #fff; border: none; padding: 12px; border-radius: 4px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  button:hover:not(:disabled) { background: #4752c4; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .error { background: #da373c; color: #fff; padding: 10px 12px; border-radius: 4px; font-size: 13px; margin-top: 12px; display: none; }
+  .error.show { display: block; }
+  .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #949ba4; }
+  .footer a { color: #00a8fc; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔐</div>
+    <h1>Login Admin</h1>
+    <p class="subtitle">Masuk untuk akses dashboard</p>
+
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input type="text" id="username" autocomplete="username" autofocus />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password" />
+
+      <button type="submit" id="btn">Masuk</button>
+      <div class="error" id="error"></div>
+    </form>
+
+    <div class="footer">
+      <a href="/">← Kembali ke halaman login user</a>
+    </div>
+  </div>
+
+<script>
+const form = document.getElementById('loginForm');
+const btn = document.getElementById('btn');
+const errorEl = document.getElementById('error');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorEl.classList.remove('show');
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!username || !password) {
+    errorEl.textContent = 'Username & password wajib diisi.';
+    errorEl.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Masuk';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.ok) {
+      btn.textContent = 'Berhasil! Mengalihkan...';
+      setTimeout(() => { window.location.href = '/admin'; }, 500);
+    } else {
+      errorEl.textContent = data.error || 'Login gagal. Coba lagi.';
+      errorEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Masuk';
+    }
+  } catch (err) {
+    errorEl.textContent = 'Tidak dapat terhubung ke server.';
+    errorEl.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Masuk';
+  }
+});
+</script>
+</body>
+</html>
